@@ -1,0 +1,41 @@
+# Dart/Flutter
+.dart_tool/
+.packages
+build/
+*.dart_tool/
+
+# Android
+android/app/build/
+android/.gradle/
+android/gradle/
+android/local.properties
+android/*.iml
+android/app/*.iml
+android/app/src/main/kotlin/com/zamosaride/app/MainActivity.kt
+
+# iOS (not used currently)
+ios/
+*.xcworkspace
+Podfile.lock
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment
+.env
+*.env
+
+# Logs
+*.log
+
+# Generated
+*.g.dart
+*.freezed.dart
+*.gr.dart
