@@ -79,6 +79,12 @@ class _HomeTabState extends State<HomeTab> {
 
   Future<void> _onMapCreated(MapboxMap createdMap) async {
     mapboxMap = createdMap;
+    await mapboxMap.location.updateSettings(
+      LocationComponentSettings(
+        enabled: true,
+        pulsingEnabled: false,
+      ),
+    );
   }
 
   void _handleMapLoaded(MapLoadedEventData _) {
