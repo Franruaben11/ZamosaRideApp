@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <!-- Android adaptive-icon foreground: a modern Z / route brand mark -->
+  <g transform="translate(512 512) scale(0.7) translate(-512 -512)">
+    <path d="M290 260 H734 L420 512 L734 764 H290"
+          fill="none" stroke="#FFFFFF" stroke-width="82" stroke-linecap="round" stroke-linejoin="round"/>
+    <circle cx="290" cy="764" r="54" fill="none" stroke="#FFFFFF" stroke-width="42"/>
+    <circle cx="734" cy="260" r="54" fill="#FFFFFF"/>
+  </g>
+</svg>

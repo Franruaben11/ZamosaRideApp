@@ -1,0 +1,159 @@
+{
+ "trip": {
+  "locations": [
+   {
+    "type": "break",
+    "lat": 17.4,
+    "lon": 78.4
+   },
+   {
+    "type": "break",
+    "lat": 17.4,
+    "lon": 78.41
+   },
+   {
+    "type": "break",
+    "lat": 17.41,
+    "lon": 78.41
+   }
+  ],
+  "legs": [
+   {
+    "maneuvers": [
+     {
+      "type": 1,
+      "instruction": "Drive east on Main Street.",
+      "verbal_pre_transition_instruction": "Drive east on Main Street for 1 kilometer.",
+      "length": 1.061,
+      "time": 95.0,
+      "begin_shape_index": 0,
+      "end_shape_index": 10
+     },
+     {
+      "type": 4,
+      "instruction": "You have arrived at your first destination.",
+      "length": 0.0,
+      "time": 0.0,
+      "begin_shape_index": 10,
+      "end_shape_index": 10
+     }
+    ],
+    "summary": {
+     "length": 1.061,
+     "time": 95.0
+    },
+    "shape": "_k_e`@__dptC?o}@?o}@?o}@?o}@?o}@?o}@?o}@?o}@?o}@?o}@"
+   },
+   {
+    "maneuvers": [
+     {
+      "type": 1,
+      "instruction": "Drive north on Park Road.",
+      "verbal_pre_transition_instruction": "Drive north on Park Road for 1 kilometer.",
+      "length": 1.106,
+      "time": 100.0,
+      "begin_shape_index": 0,
+      "end_shape_index": 10
+     },
+     {
+      "type": 4,
+      "instruction": "You have arrived at your destination.",
+      "verbal_pre_transition_instruction": "You have arrived at your destination.",
+      "length": 0.0,
+      "time": 0.0,
+      "begin_shape_index": 10,
+      "end_shape_index": 10,
+      "verbal_transition_alert_instruction": "You will arrive at your destination."
+     }
+    ],
+    "summary": {
+     "length": 1.106,
+     "time": 100.0
+    },
+    "shape": "_k_e`@_pwptCo}@?o}@?o}@?o}@?o}@?o}@?o}@?o}@?o}@?o}@?"
+   }
+  ],
+  "summary": {
+   "length": 2.167,
+   "time": 195.0,
+   "has_toll": false,
+   "has_highway": true,
+   "has_ferry": false
+  },
+  "status": 0,
+  "status_message": "Found route between points",
+  "units": "kilometers",
+  "language": "en-US"
+ },
+ "alternates": [
+  {
+   "trip": {
+    "legs": [
+     {
+      "maneuvers": [
+       {
+        "type": 1,
+        "instruction": "Drive east on Main Street.",
+        "verbal_pre_transition_instruction": "Drive east on Main Street for 1 kilometer.",
+        "length": 1.061,
+        "time": 95.0,
+        "begin_shape_index": 0,
+        "end_shape_index": 10
+       },
+       {
+        "type": 15,
+        "instruction": "Turn left onto Park Road.",
+        "verbal_transition_alert_instruction": "Turn left onto Park Road.",
+        "verbal_pre_transition_instruction": "Turn left onto Park Road.",
+        "length": 1.106,
+        "time": 100.0,
+        "begin_shape_index": 10,
+        "end_shape_index": 20
+       },
+       {
+        "type": 4,
+        "instruction": "You have arrived at your destination.",
+        "verbal_pre_transition_instruction": "You have arrived at your destination.",
+        "length": 0.0,
+        "time": 0.0,
+        "begin_shape_index": 20,
+        "end_shape_index": 20,
+        "verbal_transition_alert_instruction": "You will arrive at your destination."
+       }
+      ],
+      "summary": {
+       "length": 2.167,
+       "time": 195.0
+      },
+      "shape": "_k_e`@__dptC?o}@?o}@?o}@?o}@?o}@?o}@?o}@?o}@?o}@?o}@o}@?o}@?o}@?o}@?o}@?o}@?o}@?o}@?o}@?o}@?"
+     }
+    ],
+    "summary": {
+     "length": 2.167,
+     "time": 195.0,
+     "has_toll": true,
+     "has_highway": false,
+     "has_ferry": false
+    }
+   }
+  },
+  {
+   "trip": {
+    "legs": [
+     {
+      "maneuvers": [],
+      "summary": {
+       "length": 0,
+       "time": 0
+      },
+      "shape": ""
+     }
+    ],
+    "summary": {
+     "length": 0,
+     "time": 0
+    }
+   }
+  }
+ ]
+}

@@ -1,0 +1,61 @@
+import 'package:executor_lib/executor_lib.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:vector_tile_renderer/vector_tile_renderer.dart';
+
+import '../../vector_map_tiles.dart';
+import '../cache/caches.dart';
+import '../stream/caches_tile_provider.dart';
+import '../stream/delay_provider.dart';
+import '../stream/tile_processor.dart';
+import '../stream/tile_supplier_raster.dart';
+import '../stream/tileset_executor_preprocessor.dart';
+import '../stream/tileset_ui_preprocessor.dart';
+import 'future_tile_provider.dart';
+import 'tile_loader.dart';
+
+TileProvider createRasterTileProvider(
+    Theme theme,
+    SpriteStyle? sprites,
+    Caches caches,
+    RasterTileProvider rasterTileProvider,
+    Executor executor,
+    TileOffset tileOffset,
+    Duration tileDelay,
+    int concurrency,
+    [double scale = 2.0, MapCamera Function()? camera]) {
+  final loader = createTileLoader(theme, sprites, caches, rasterTileProvider,
+      executor, tileOffset, tileDelay, concurrency, scale, camera);
+  return FutureTileProvider(loader: loader.loadTile);
+}
+
+TileLoader createTileLoader(
+    Theme theme,
+    SpriteStyle? sprites,
+    Caches caches,
+    RasterTileProvider rasterTileProvider,
+    Executor executor,
+    TileOffset tileOffset,
+    Duration tileDelay,
+    int concurrency,
+    [double scale = 2.0, MapCamera Function()? camera]) {
+  final tileSupplier = DelayProvider(
+          CachesTileProvider(
+              caches,
+              TileProcessor(executor),
+              TilesetExecutorPreprocessor(TilesetPreprocessor(theme), executor),
+              TilesetUiPreprocessor(
+                  TilesetPreprocessor(theme, initializeGeometry: true))),
+          tileDelay)
+      .orDelegate();
+  return TileLoader(
+      theme,
+      sprites,
+      caches.atlasImageCache?.retrieve,
+      tileSupplier,
+      rasterTileProvider,
+      tileOffset,
+      concurrency,
+      scale,
+      caches.rasterImageCache,
+      camera);
+}
