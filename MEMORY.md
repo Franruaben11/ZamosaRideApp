@@ -3,12 +3,12 @@
 > Estado vivo del proyecto. Leer al empezar y actualizar al terminar cada tarea. Máximo ~50 líneas: resumir o borrar lo que ya no aporte. Las reglas permanentes van en `AGENTS.md`. Nunca guardar claves, tokens ni datos personales.
 
 ## Estado actual
-- App Flutter con mapa vectorial OSM, ruteo con Valhalla, lugares con Overture Maps y autocompletado con Photon.
+- App Flutter con mapas del **Google Maps SDK** oficial y ruteo avanzado mediante **Google Routes API** (`computeRoutes`).
 - Integración con el ESP32-S3 (`ZamosaRideFirmware`) en etapa de diseño: el protocolo BLE + JSON está definido a nivel de principios, sin implementar.
 - `AGENTS.md` condensado a ~100 líneas (reglas consolidadas, sin duplicados).
 
 ## Decisiones tomadas (con su porqué)
-- **Thin client:** el teléfono procesa GPS, Valhalla y toda la lógica; el ESP32 solo dibuja. Así el firmware queda simple y la lógica vive en un solo lugar.
+- **Thin client:** el teléfono procesa GPS, la lógica de navegación y las peticiones a la **Google Routes API**; el ESP32 solo dibuja la interfaz física. Así el firmware queda simple y toda la lógica centralizada vive en un solo lugar.
 - **BLE + JSON:** tramas chicas con solo los campos necesarios.
 - **Maniobras como strings** (`"left"`, `"right"`, `"u_turn"`), nunca IDs numéricos: facilita la depuración.
 - **ESP32 -> App:** solo eventos de botones del manubrio; el firmware no interpreta qué hacen.
@@ -17,7 +17,6 @@
 ## Pendiente
 - Definir la ruta del esquema de mensajes y los UUID en el firmware y ponerla en `AGENTS.md` (reemplazar `<ruta>`).
 - Definir heartbeat y timeout de conexión (sin valores asumidos todavía).
-- Aclarar si Valhalla y Photon corren local o remoto y cómo levantarlos.
 - Crear un `AGENTS.md` propio en `ZamosaRideFirmware` (LVGL, pantalla circular, build y flasheo).
 
 ## Errores a evitar

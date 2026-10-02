@@ -1,6 +1,6 @@
 MIT License
 
-Copyright (c) 2026 Wayfare contributors
+Copyright (c) 2026 ZamosaRide
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -19,19 +19,3 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
-
----
-
-This application bundles no map data, but it displays and routes over data
-from third parties under their own licences:
-
-- Map data © OpenStreetMap contributors, Open Database License (ODbL).
-- Places © Overture Maps Foundation, CDLA-Permissive-2.0 / ODbL.
-- Vector tiles by OpenFreeMap; raster basemaps by CARTO, Esri, OpenTopoMap,
-  CyclOSM and HOT OSM France under their respective terms.
-- Routing by the FOSSGIS Valhalla instance; search by Photon (Komoot) and
-  Nominatim; weather by Open-Meteo; photos via Wikimedia Commons.
-
-`packages/vector_map_tiles` is a vendored copy of the vector_map_tiles package
-(BSD-3-Clause, see its LICENSE file) with the modifications listed in
-`packages/vector_map_tiles/PATCHES.md`.
