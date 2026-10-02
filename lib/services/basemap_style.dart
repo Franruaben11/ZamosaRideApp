@@ -81,9 +81,8 @@ Map<String, dynamic> densifyStyleJson(Map<String, dynamic> style) {
     final mz = _minZoomOverrides[id];
     if (mz != null) layer['minzoom'] = mz;
 
-    // Insert POI dots just before the first real POI label layer so labels
-    // draw on top of them.
-    if (id == 'poi_r20') layers.add(_poiDotsLayer());
+    // Previously we inserted extra POI dots here. For extreme minimalism
+    // in navigation mode we avoid adding generic POI dot layers at all.
     layers.add(layer);
     if (id == 'building') layers.add(_housenumberLayer());
   }
@@ -163,6 +162,7 @@ Map<String, dynamic> _housenumberLayer() => {
 
 /// Overture category -> sprite icon. Covers both `basic_category` values and
 /// the finer `categories.primary` vocabulary; anything else gets a dot.
+// Traducir una categoría de texto a un dibujito (sprite)
 const _iconByCategory = <String, List<String>>{
   'hospital': [
     'hospital',
@@ -356,89 +356,52 @@ const _iconByCategory = <String, List<String>>{
   ],
 };
 
-/// Categories that matter from neighbourhood zoom (like Google at z14-15).
-const _tierACategories = [
+/// Navigation-mode POI whitelist (extreme minimalism for motorcycle/bike
+/// drivers). Only survival / emergency / repair categories are shown in the
+/// basemap during navigation. The full `_iconByCategory` dictionary is kept
+/// intact for other UI features (search, details). Results for non-whitelisted
+/// categories (shops, restaurants, entertainment) MUST be rendered by the
+/// app as temporary `Marker` widgets or a dynamic overlay layer triggered by
+/// the search UI — they are intentionally excluded from the static style.
+const _navCategories = [
+  'gas_station',
+  'fuel_station',
+  'petrol_pump',
   'hospital',
   'medical_center',
-  'school',
-  'high_school',
-  'college_university',
-  'college',
-  'university',
-  'hindu_temple',
-  'hindu_place_of_worship',
-  'place_of_worship',
-  'mosque',
-  'church_cathedral',
-  'church',
-  'shopping_center',
-  'mall',
-  'hotel',
-  'resort',
-  'gas_station',
-  'park',
-  'stadium',
-  'sports_complex',
-  'bus_station',
-  'train_station',
-  'railway_station',
-  'metro_station',
-  'airport',
+  'clinic',
   'police_station',
-  'fire_station',
-  'central_government_office',
-  'government_office',
-  'landmark_and_historical_building',
-  'movie_theater',
-  'cinema',
-  'museum',
-  'library',
-  'post_office',
-  'bank_credit_union',
-  'bank_or_credit_union',
-  'banks',
+  'automotive_repair',
+  'motorcycle_dealer',
+];
+
+// Tier A: neighbourhood-important categories pared down to navigation essentials.
+const _tierACategories = [
+  'gas_station',
+  'fuel_station',
+  'petrol_pump',
+  'hospital',
+  'medical_center',
+  'clinic',
+  'police_station',
+  'automotive_repair',
+  'motorcycle_dealer',
 ];
 
 /// Everyday places from street zoom (z15.5+).
+// El mapa oculta estos lugares desde lejos y solo los dibuja cuando haces mucho zoom
+// Tier B: street-level categories — reduced to the same navigation essentials
+// so the basemap stays minimal even when zoomed to street level.
 const _tierBCategories = [
-  'restaurant',
-  'indian_restaurant',
-  'pizza_restaurant',
-  'fast_food_restaurant',
-  'cafe',
-  'coffee_shop',
-  'bakery',
-  'ice_cream_shop',
-  'bar',
-  'pub',
-  'pharmacy',
-  'grocery_store',
-  'supermarket',
-  'convenience_store',
-  'clothing_store',
-  'jewelry_store',
-  'electronics_store',
-  'mobile_phone_store',
-  'furniture_store',
-  'hardware_store',
-  'hardware_home_and_garden_store',
-  'hostel',
-  'dentist',
-  'doctors',
-  'doctor',
-  'gym',
-  'beauty_salon',
-  'hair_salon',
-  'car_dealer',
+  'gas_station',
+  'fuel_station',
+  'petrol_pump',
+  'hospital',
+  'medical_center',
+  'clinic',
+  'police_station',
   'automotive_repair',
-  'parking',
-  'preschool',
-  'community_center',
-  'atms',
-  'credit_union',
-  'financial_service',
-  'shopping',
-  'electronics',
+  'motorcycle_dealer',
 ];
 
 List<dynamic> _iconExpression() {
@@ -528,76 +491,24 @@ Map<String, dynamic> addOvertureLayers(Map<String, dynamic> style) {
     // Overture footprints were dropped: as a separate layer they painted over
     // roads and labels, and their multi-MB tiles dominated load time.
     if (id == 'building-3d') continue; // extrusions are heavy and add little
+    // Drop any layer that is explicitly a POI source-layer or whose id
+    // indicates it is a POI layer. This keeps the base style free of
+    // commercial/retail/entertainment POIs; only the limited overture
+    // navigation POIs are added below.
+    final sourceLayer = layer['source-layer'] as String?;
+    if (sourceLayer == 'poi' || id.toLowerCase().contains('poi')) continue;
     layers.add(layer);
   }
 
   // POIs go on top of everything so they take part in label collision last
   // (OSM labels, drawn earlier, win ties — avoids duplicate names).
+  // Use the top-level `_navCategories` whitelist defined above to keep the
+  // basemap minimal during navigation.
+
   layers.addAll([
-    {
-      'id': 'overture_poi_dots',
-      'type': 'symbol',
-      'source': 'overture_places',
-      'source-layer': 'place',
-      // Icons aren't collision-culled by the renderer (only text is), so keep
-      // dots sparse: confident, unlabelled-tier places only, from z15.5.
-      'minzoom': 15.5,
-      'maxzoom': 17,
-      'filter': [
-        'all',
-        _isPoint(),
-        _hasName(),
-        _minConfidence(0.6),
-        [
-          'match',
-          [
-            'coalesce',
-            ['get', 'basic_category'],
-            '',
-          ],
-          <String>[..._tierACategories, ..._tierBCategories],
-          false,
-          true,
-        ],
-      ],
-      'layout': {
-        'icon-image': 'dot_9',
-        'icon-size': [
-          'interpolate',
-          ['linear'],
-          ['zoom'],
-          15.5,
-          0.4,
-          17,
-          0.6,
-        ],
-      },
-      'paint': {'icon-opacity': 0.7},
-    },
     _overturePoiLayer(
-      id: 'overture_poi_a',
-      minzoom: 14,
-      filter: [
-        'all',
-        _isPoint(),
-        _hasName(),
-        _minConfidence(0.6),
-        [
-          'match',
-          [
-            'coalesce',
-            ['get', 'basic_category'],
-            '',
-          ],
-          _tierACategories,
-          true,
-          false,
-        ],
-      ],
-    ),
-    _overturePoiLayer(
-      id: 'overture_poi_b',
-      minzoom: 15.5,
+      id: 'overture_poi_navigation',
+      minzoom: 14.0,
       filter: [
         'all',
         _isPoint(),
@@ -610,33 +521,12 @@ Map<String, dynamic> addOvertureLayers(Map<String, dynamic> style) {
             ['get', 'basic_category'],
             '',
           ],
-          _tierBCategories,
+          _navCategories,
           true,
           false,
         ],
       ],
-    ),
-    _overturePoiLayer(
-      id: 'overture_poi_c',
-      minzoom: 17,
-      textSize: 11,
-      filter: [
-        'all',
-        _isPoint(),
-        _hasName(),
-        _minConfidence(0.45),
-        [
-          'match',
-          [
-            'coalesce',
-            ['get', 'basic_category'],
-            '',
-          ],
-          [..._tierACategories, ..._tierBCategories],
-          false,
-          true,
-        ],
-      ],
+      textSize: 12,
     ),
   ]);
   out['layers'] = layers;
