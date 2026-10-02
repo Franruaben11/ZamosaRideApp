@@ -50,14 +50,14 @@ flutter_launcher_icons:
   android: true
   ios: true
   remove_alpha_ios: true
-  image_path: assets/branding/icon.png
+  image_path: assets/branding/zamosaRide.png
   adaptive_icon_background: "#000000"
-  adaptive_icon_foreground: assets/branding/icon_foreground.png
+  adaptive_icon_foreground: assets/branding/zamosaRide.png
   web:
     generate: true
-    image_path: assets/branding/icon.png
+    image_path: assets/branding/zamosaRide.png
     background_color: "#000000"
     theme_color: "#000000"
   macos:
     generate: true
-    image_path: assets/branding/icon.png
+    image_path: assets/branding/zamosaRide.png
