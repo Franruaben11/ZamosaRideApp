@@ -10,10 +10,12 @@ dependencies:
   flutter:
     sdk: flutter
   flutter_compass: ^0.8.1
+  google_maps_flutter:
   flutter_map: ^8.3.1
   vector_map_tiles: ^9.0.0-beta.11
   vector_tile_renderer: ^6.1.0
   flutter_tts: ^4.2.5
+  flutter_polyline_points:
   geolocator: ^14.0.3
   http: ^1.6.0
   latlong2: ^0.10.1

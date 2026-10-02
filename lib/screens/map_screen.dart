@@ -4,6 +4,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_compass/flutter_compass.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart' as gm;
 import 'package:flutter_map/flutter_map.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
@@ -22,9 +23,9 @@ import '../services/render_quality.dart';
 import '../services/routing_service.dart';
 import '../services/storage_service.dart';
 import '../services/weather_service.dart';
-import '../ui/icons.dart';
 import '../util/constants.dart';
 import '../util/geo.dart';
+import 'map/google_map_facade.dart';
 import '../widgets/foveated_layer.dart';
 import '../widgets/location_markers.dart';
 import '../widgets/map_controls.dart';
@@ -77,7 +78,14 @@ class _MapScreenState extends State<MapScreen>
   final _weather = WeatherService();
   final _photos = PhotoService();
 
-  final _mapController = MapController();
+  late final GoogleMapFacade _mapController = GoogleMapFacade(
+    initialCamera: const MapViewCamera(
+      center: _fallbackCenter,
+      zoom: _fallbackZoom,
+      rotation: 0,
+      nonRotatedSize: Size.zero,
+    ),
+  );
   late final CameraAnimator _camera = CameraAnimator(
     vsync: this,
     map: _mapController,
@@ -121,12 +129,9 @@ class _MapScreenState extends State<MapScreen>
 
   // Cached render objects — rebuilt only when the underlying data changes,
   // not on every widget build.
-  List<Polyline> _routePolylines = const [];
-  List<Marker> _staticMarkers = const [];
+  List<gm.Polyline> _routePolylines = const [];
+  List<gm.Marker> _staticMarkers = const [];
   NavRoute? _cachedNavRoute;
-
-  /// Last camera with finite values; see `onPositionChanged`.
-  MapCamera? _lastGoodCamera;
 
   // Camera-follow throttling.
   LatLng? _lastCamTarget;
@@ -414,20 +419,15 @@ class _MapScreenState extends State<MapScreen>
 
   // ─────────────────────────────────────── camera helpers
 
-  static bool _isFinite(MapCamera camera) =>
-      camera.zoom.isFinite &&
-      camera.rotation.isFinite &&
-      camera.center.latitude.isFinite &&
-      camera.center.longitude.isFinite;
+    static gm.LatLng _toGoogleLatLng(LatLng point) =>
+      gm.LatLng(point.latitude, point.longitude);
 
   void _fitRoute(NavRoute route) => _camera.fit(
-    CameraFit.coordinates(
-      coordinates: route.shape,
-      padding: const EdgeInsets.fromLTRB(48, 140, 48, 380),
-    ),
+    route.shape,
+    padding: const EdgeInsets.fromLTRB(48, 140, 48, 380),
   );
 
-  void _scheduleCameraSave(MapCamera camera) {
+  void _scheduleCameraSave(MapViewCamera camera) {
     _cameraSaveTimer?.cancel();
     _cameraSaveTimer = Timer(const Duration(seconds: 1), () {
       if (_view != _ViewMode.navigate) {
@@ -447,16 +447,15 @@ class _MapScreenState extends State<MapScreen>
     // Google-style route colors: strong blue with white casing by day,
     // bright blue with deep casing on the dark basemap.
     final activeFill = dark ? const Color(0xFF5AA7FF) : kBrandBlue;
-    final activeCasing = dark ? const Color(0xFF0B3D91) : Colors.white;
-
-    final polylines = <Polyline>[];
+    final polylines = <gm.Polyline>[];
     if (_view == _ViewMode.route) {
       for (var i = 0; i < _routes.length; i++) {
         if (i == _selectedRoute) continue;
         polylines.add(
-          Polyline(
-            points: _routes[i].shape,
-            strokeWidth: 6,
+          gm.Polyline(
+            polylineId: gm.PolylineId('route_alt_$i'),
+            points: _routes[i].shape.map(_toGoogleLatLng).toList(),
+            width: 6,
             color: dark
                 ? const Color(0xFF8DA3B8).withValues(alpha: 0.7)
                 : Colors.blueGrey.withValues(alpha: 0.55),
@@ -476,20 +475,22 @@ class _MapScreenState extends State<MapScreen>
           : 0;
       if (split > 0) {
         polylines.add(
-          Polyline(
-            points: active.shape.sublist(0, split + 1),
-            strokeWidth: 7,
+          gm.Polyline(
+            polylineId: const gm.PolylineId('route_traveled'),
+            points: active.shape.sublist(0, split + 1).map(_toGoogleLatLng).toList(),
+            width: 7,
             color: dark ? const Color(0xFF5F6B78) : const Color(0xFF9AA0A6),
           ),
         );
       }
       polylines.add(
-        Polyline(
-          points: split > 0 ? active.shape.sublist(split) : active.shape,
-          strokeWidth: 9,
+        gm.Polyline(
+          polylineId: const gm.PolylineId('route_active'),
+          points: (split > 0 ? active.shape.sublist(split) : active.shape)
+              .map(_toGoogleLatLng)
+              .toList(),
+          width: 9,
           color: activeFill,
-          borderStrokeWidth: 3,
-          borderColor: activeCasing,
         ),
       );
     }
@@ -497,141 +498,43 @@ class _MapScreenState extends State<MapScreen>
   }
 
   void _rebuildStaticMarkers() {
-    final theme = Theme.of(context);
-    final markers = <Marker>[];
-    final poiIcon = _activePoi?.icon ?? Icons.place;
+    final markers = <gm.Marker>[];
     for (final poi in _pois) {
       markers.add(
-        Marker(
-          point: poi.point,
-          // 48 dp hit target around a 36 dp glyph.
-          width: kMinTapSize,
-          height: kMinTapSize,
-          child: Semantics(
-            button: true,
-            label: poi.name,
-            child: GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onTap: () => _selectPlace(poi, moveCamera: false),
-              child: Center(
-                // Flat ring instead of a blurred shadow: 40 blurred circles
-                // re-rasterised every camera frame were measurable.
-                child: RepaintBoundary(
-                  child: Container(
-                    width: 36,
-                    height: 36,
-                    decoration: BoxDecoration(
-                      color: theme.colorScheme.primaryContainer,
-                      shape: BoxShape.circle,
-                      border: Border.all(color: Colors.white, width: 2),
-                    ),
-                    child: Icon(poiIcon, size: 18),
-                  ),
-                ),
-              ),
-            ),
-          ),
+        gm.Marker(
+          markerId: gm.MarkerId('poi_${poi.name}_${poi.point.latitude}_${poi.point.longitude}'),
+          position: gm.LatLng(poi.point.latitude, poi.point.longitude),
+          onTap: () => _selectPlace(poi, moveCamera: false),
+          icon: gm.BitmapDescriptor.defaultMarkerWithHue(gm.BitmapDescriptor.hueAzure),
         ),
       );
     }
     if (_selectedPlace != null) {
       markers.add(
-        Marker(
-          point: _selectedPlace!.point,
-          width: 48,
-          height: 52,
-          alignment: Alignment.topCenter,
-          // Tapping the pin re-opens the info sheet if it was closed, or
-          // toggles it between peek and expanded. Consuming the tap also stops
-          // the map's onTap from dismissing the place.
-          child: Semantics(
-            button: true,
-            label: 'Selected place: ${_selectedPlace!.name}',
-            child: GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onTap: () {
-                if (_view != _ViewMode.place) return;
-                if (!_placeSheetVisible) {
-                  setState(() => _placeSheetVisible = true);
-                } else if (_sheetController.isAttached) {
-                  final expanded = _sheetController.size > 0.5;
-                  unawaited(
-                    _sheetController.animateTo(
-                      expanded ? kSheetPeekSize : kSheetMaxSize,
-                      duration: const Duration(milliseconds: 300),
-                      curve: Curves.easeOut,
-                    ),
-                  );
-                }
-              },
-              child: const Align(
-                alignment: Alignment.topCenter,
-                child: Icon(Icons.location_pin, size: 46, color: kPinRed),
-              ),
-            ),
+        gm.Marker(
+          markerId: const gm.MarkerId('selected_place'),
+          position: gm.LatLng(
+            _selectedPlace!.point.latitude,
+            _selectedPlace!.point.longitude,
           ),
+          onTap: () {
+            if (_view != _ViewMode.place) return;
+            if (!_placeSheetVisible) {
+              setState(() => _placeSheetVisible = true);
+            } else if (_sheetController.isAttached) {
+              final expanded = _sheetController.size > 0.5;
+              unawaited(
+                _sheetController.animateTo(
+                  expanded ? kSheetPeekSize : kSheetMaxSize,
+                  duration: const Duration(milliseconds: 300),
+                  curve: Curves.easeOut,
+                ),
+              );
+            }
+          },
+          icon: gm.BitmapDescriptor.defaultMarkerWithHue(gm.BitmapDescriptor.hueRed),
         ),
       );
-    }
-
-    // Tappable time bubbles on each route alternative (route mode only).
-    if (_view == _ViewMode.route && _routes.length > 1) {
-      for (var i = 0; i < _routes.length; i++) {
-        final route = _routes[i];
-        final at = (route.shape.length * (0.35 + 0.14 * i)).floor().clamp(
-          0,
-          route.shape.length - 1,
-        );
-        final isSelected = i == _selectedRoute;
-        final index = i;
-        final label = formatDuration(route.timeSeconds);
-        markers.add(
-          Marker(
-            point: route.shape[at],
-            width: 90,
-            height: kMinTapSize,
-            rotate: true,
-            child: Semantics(
-              button: true,
-              selected: isSelected,
-              label:
-                  '${i == 0 ? 'Fastest route' : 'Alternative ${i + 1}'}, $label',
-              child: GestureDetector(
-                behavior: HitTestBehavior.opaque,
-                onTap: () {
-                  unawaited(HapticFeedback.selectionClick());
-                  _refresh(() => _selectedRoute = index);
-                },
-                child: Center(
-                  child: Material(
-                    elevation: 3,
-                    borderRadius: BorderRadius.circular(17),
-                    // primary/onPrimary is a ≥4.5:1 pair in both themes.
-                    color: isSelected
-                        ? theme.colorScheme.primary
-                        : theme.colorScheme.surface,
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 8,
-                      ),
-                      child: Text(
-                        label,
-                        style: theme.textTheme.labelLarge?.copyWith(
-                          fontWeight: FontWeight.w600,
-                          color: isSelected
-                              ? theme.colorScheme.onPrimary
-                              : theme.colorScheme.onSurface,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ),
-        );
-      }
     }
     _staticMarkers = markers;
   }
@@ -769,7 +672,7 @@ class _MapScreenState extends State<MapScreen>
     }
   }
 
-  void _onLongPress(TapPosition tapPosition, LatLng point) {
+  void _onLongPress(LatLng point) {
     if (_view == _ViewMode.navigate) return;
     unawaited(HapticFeedback.selectionClick());
     // Show the pin immediately; the enrichment path swaps in the address.
@@ -902,7 +805,7 @@ class _MapScreenState extends State<MapScreen>
     }
   }
 
-  void _updatePoiStale(MapCamera camera) {
+  void _updatePoiStale(MapViewCamera camera) {
     final origin = _poiCenter;
     if (_activePoi == null || origin == null) return;
     final stale = distanceMeters(origin, camera.center) > 1200;
@@ -1414,7 +1317,6 @@ class _MapScreenState extends State<MapScreen>
 
   @override
   Widget build(BuildContext context) {
-    final dark = Theme.of(context).brightness == Brightness.dark;
     final navigating = _view == _ViewMode.navigate;
     final engine = _nav;
     final saved = AppSettings.lastCamera;
@@ -1429,98 +1331,91 @@ class _MapScreenState extends State<MapScreen>
       child: Scaffold(
         body: Stack(
           children: [
-            FlutterMap(
-              mapController: _mapController,
-              options: MapOptions(
-                initialCenter: initialCenter,
-                initialZoom: initialZoom,
-                backgroundColor: VectorBasemap.backgroundColor(dark: dark),
-                maxZoom: 20,
-                minZoom: 2,
-                onMapReady: () {
-                  _camera.ready = true;
-                  if (_myLocation != null &&
-                      _devCenter == null &&
-                      saved == null) {
-                    _centeredOnFirstFix = true;
-                    _mapController.move(_myLocation!, 15);
-                  }
-                },
-                onTap: (_, _) {
-                  if (_view != _ViewMode.place) return;
-                  if (_placeSheetVisible) {
-                    // First tap tucks the card away but keeps the pin.
-                    setState(() => _placeSheetVisible = false);
-                  } else {
-                    // Second tap clears the pin entirely.
-                    _closePlace();
-                  }
-                },
-                onLongPress: _onLongPress,
-                onPositionChanged: (camera, hasGesture) {
-                  // ValueNotifiers only — no setState at camera frame rate.
-                  if (!_isFinite(camera)) {
-                    // flutter_map's fling animation can hand us a NaN
-                    // camera: after a symmetric pinch the focal point has
-                    // not moved, its direction becomes 0/0 = NaN, and the
-                    // fling then moves the centre to NaN. A NaN camera
-                    // makes MarkerLayer's world-wrapping loop run forever
-                    // (Rect.overlaps is true for NaN), which allocates
-                    // until the frame ANRs. Snap back to the last finite
-                    // camera; that move also interrupts the fling.
-                    final good = _lastGoodCamera;
-                    if (good != null) {
-                      _mapController.move(good.center, good.zoom);
-                    }
-                    return;
-                  }
-                  _lastGoodCamera = camera;
-                  // A user gesture takes over the camera: cancel any follow /
-                  // compass animation still in flight so it doesn't fight the
-                  // pinch or drag frame by frame.
-                  if (hasGesture) _camera.stop();
-                  if (hasGesture && _view == _ViewMode.navigate) {
-                    if (_followNavN.value) _followNavN.value = false;
-                    // Free look pauses following; resume automatically after
-                    // 10 s without another gesture (Google-style).
-                    _autoRecenterTimer?.cancel();
-                    _autoRecenterTimer = Timer(const Duration(seconds: 10), () {
-                      if (mounted &&
-                          _view == _ViewMode.navigate &&
-                          _nav != null &&
-                          !_followNavN.value) {
-                        _followNavN.value = true;
-                        _lastCamTarget = null; // force the next camera update
-                        _onNavUpdate();
-                      }
-                    });
-                  }
-                  if (hasGesture && _browseHeadingMode) {
-                    setState(() => _browseHeadingMode = false);
-                  }
-                  _rotationN.value = camera.rotation;
-                  _updatePoiStale(camera);
-                  _scheduleCameraSave(camera);
-                },
-              ),
-              children: [
-                _basemap(dark),
-                PolylineLayer(polylines: _routePolylines),
-                MarkerLayer(markers: _staticMarkers),
-                _buildUserLayers(),
-                const Scalebar(
-                  alignment: Alignment.bottomLeft,
-                  padding: EdgeInsets.only(left: 12, bottom: 44),
-                ),
-                RichAttributionWidget(
-                  attributions: [
-                    TextSourceAttribution(_layer.attribution),
-                    const TextSourceAttribution(
-                      'Routing: Valhalla/FOSSGIS · Search: Photon & Nominatim',
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final viewport = constraints.biggest;
+                if (viewport.isFinite) {
+                  _mapController.updateViewportSize(viewport);
+                }
+                if (!_mapController.ready) {
+                  _mapController.camera = MapViewCamera(
+                    center: initialCenter,
+                    zoom: initialZoom,
+                    rotation: 0,
+                    nonRotatedSize: viewport,
+                  );
+                }
+                return gm.GoogleMap(
+                  initialCameraPosition: gm.CameraPosition(
+                    target: gm.LatLng(
+                      initialCenter.latitude,
+                      initialCenter.longitude,
                     ),
-                  ],
-                ),
-              ],
+                    zoom: initialZoom,
+                    bearing: 0,
+                  ),
+                  onMapCreated: (controller) {
+                    _mapController.attach(controller);
+                    _camera.ready = true;
+                    if (_myLocation != null &&
+                        _devCenter == null &&
+                        saved == null) {
+                      _centeredOnFirstFix = true;
+                      _mapController.move(_myLocation!, 15);
+                    }
+                  },
+                  onCameraMoveStarted: () {
+                    if (_mapController.programmaticMove) return;
+                    _camera.stop();
+                    if (_view == _ViewMode.navigate) {
+                      if (_followNavN.value) _followNavN.value = false;
+                      _autoRecenterTimer?.cancel();
+                      _autoRecenterTimer = Timer(const Duration(seconds: 10), () {
+                        if (mounted &&
+                            _view == _ViewMode.navigate &&
+                            _nav != null &&
+                            !_followNavN.value) {
+                          _followNavN.value = true;
+                          _lastCamTarget = null;
+                          _onNavUpdate();
+                        }
+                      });
+                    }
+                    if (_browseHeadingMode) {
+                      setState(() => _browseHeadingMode = false);
+                    }
+                  },
+                  onCameraMove: (position) {
+                    _mapController.updateFromCameraPosition(position);
+                    final camera = _mapController.camera;
+                    _rotationN.value = camera.rotation;
+                    _updatePoiStale(camera);
+                    _scheduleCameraSave(camera);
+                  },
+                  onTap: (point) {
+                    if (_view != _ViewMode.place) return;
+                    if (_placeSheetVisible) {
+                      setState(() => _placeSheetVisible = false);
+                    } else {
+                      _closePlace();
+                    }
+                  },
+                  onLongPress: (point) => _onLongPress(
+                    LatLng(point.latitude, point.longitude),
+                  ),
+                  myLocationEnabled: true,
+                  myLocationButtonEnabled: false,
+                  zoomControlsEnabled: false,
+                  compassEnabled: false,
+                  mapToolbarEnabled: false,
+                  rotateGesturesEnabled: true,
+                  tiltGesturesEnabled: true,
+                  scrollGesturesEnabled: true,
+                  zoomGesturesEnabled: true,
+                  polylines: Set<gm.Polyline>.from(_routePolylines),
+                  markers: Set<gm.Marker>.from(_staticMarkers),
+                );
+              },
             ),
 
             // Top UI: search bar + POI chips (hidden while navigating).
@@ -1685,14 +1580,12 @@ class _MapScreenState extends State<MapScreen>
                                   // Route overview: whole remaining route.
                                   _followNavN.value = false;
                                   _camera.fit(
-                                    CameraFit.coordinates(
-                                      coordinates: engine.route.shape,
-                                      padding: const EdgeInsets.fromLTRB(
-                                        48,
-                                        200,
-                                        48,
-                                        200,
-                                      ),
+                                    engine.route.shape,
+                                    padding: const EdgeInsets.fromLTRB(
+                                      48,
+                                      200,
+                                      48,
+                                      200,
                                     ),
                                   );
                                   _mapController.rotate(0);
