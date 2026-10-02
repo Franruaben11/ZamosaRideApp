@@ -1,21 +1,23 @@
 # ZamosaRide
 
-<center>
+<div align="center">
 
 <img src="assets/branding/zamosaRide.png" width="112" alt="ZamosaRide">
-<h1 align="center">ZamosaRide</h1>
-<p align="center"><em>Navigation and turn-by-turn routing for motorbikes</em></p>
 
-<p align="center">
-  <a href="https://img.shields.io/badge/Flutter-stable-02569B?logo=flutter&logoColor=white">
+# ZamosaRide
+
+<em>Navigation and turn-by-turn routing for motorbikes</em>
+
+<p>
+  <a href="https://github.com/Franruaben11/ZamosaRideApp-valhalla1-openstreetmap/blob/main/LICENSE">
     <img src="https://img.shields.io/badge/Flutter-stable-02569B?logo=flutter&logoColor=white" alt="Flutter stable">
   </a>
-  <a href="https://img.shields.io/badge/licence-MIT-green">
+  <a href="https://github.com/Franruaben11/ZamosaRideApp-valhalla1-openstreetmap/blob/main/LICENSE">
     <img src="https://img.shields.io/badge/licence-MIT-green" alt="MIT">
   </a>
 </p>
 
-</center>
+</div>
 
 ## Description
 
