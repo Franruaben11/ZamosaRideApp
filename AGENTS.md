@@ -9,8 +9,7 @@ Desarrollar y mantener el proyecto de forma incremental, respetando la arquitect
 ## Stack
 
 - Flutter, Dart SDK `^3.11`.
-- Mapas: OpenStreetMap, renderizados con `vector_map_tiles` y `vector_tile_renderer` (versiones locales modificadas para el dispositivo y compatibilidad con Impeller).
-- Ruteo: Valhalla. Lugares: Overture Maps. Autocompletado: Photon.
+- Mapas y Ruteo: Google Maps SDK oficial para renderizado de mapas y Google Routes API (`computeRoutes`) para el cálculo de trayectos optimizados y navegación en tiempo real.
 - Hardware: ESP32-S3 Waveshare 1,75" (466 × 466 px, QSPI).
 - El firmware está en la carpeta hermana `../ZamosaRideFirmware`; se puede leer para verificar el protocolo.
 
@@ -18,8 +17,8 @@ No introducir wrappers comerciales (Mapbox, etc.) ni reemplazar el stack sin aut
 
 ## Estructura
 
-- `lib/services/`: clientes HTTP, acceso a APIs y comunicación con el ESP32.
-- `lib/navigation/`: motor de navegación (`NavigationEngine`) y recálculo de rutas.
+- `lib/services/`: Conexiones a APIs externas (como el cliente de la API de Google Routes).
+- `lib/navigation/`: Motor de navegación (`NavigationEngine`) y lógica de recálculo de rutas.
 - `assets/`: recursos, incluidos los JSON de estilos del mapa.
 - `packages/`: librerías internas parcheadas.
 
@@ -45,20 +44,19 @@ flutter build apk --release  # APK de release
 
 ## Reglas de dominio
 
-**Mapas**
-- Respetar el renderizado vectorial existente y el procesamiento de geometrías en isolates. No mover trabajo pesado al hilo principal.
-- No eliminar ni modificar `kUserAgent` en `lib/services/api_client.dart`.
-- Distinguir datos locales de los que requieren internet; no afirmar que algo funciona offline si depende de un servicio remoto.
-- Ante errores de red, timeouts o respuestas inválidas, fallar de forma controlada y dejar la app en un estado coherente.
+**Mapas y Arquitectura**
+- Mantener las operaciones pesadas (como el procesamiento y decodificación de geometrías de rutas) en isolates para no congelar el hilo principal y garantizar fluidez gráfica (compatible con Impeller).
+- Distinguir datos locales de los que requieren internet; no afirmar que algo funciona offline si depende de servicios remotos como la Google Routes API.
+- Ante errores de red, timeouts o respuestas inválidas de la API, fallar de forma controlada y dejar la app en un estado coherente.
 
 **Navegación y GPS**
-- Preservar el seguimiento de cámara, incluido el modo `heading-up`.
+- Preservar el seguimiento de cámara, incluido el modo heading-up.
 - Tratar la señal GPS ausente o imprecisa como un estado posible: sin bloqueos, saltos injustificados ni recálculos repetitivos.
-- No inventar maniobras, distancias ni rutas que el servicio no haya devuelto.
+- No inventar maniobras, distancias ni rutas que el servicio de Google no haya devuelto.
 
 ## Comunicación App <-> ESP32 (BLE + JSON)
 
-- El teléfono procesa todo (GPS, Valhalla, recálculos). El ESP32 solo dibuja y reporta botones.
+- El teléfono procesa todo (GPS, Routes API, recálculos). El ESP32 solo dibuja y reporta botones.
 - App -> ESP32: estados listos para mostrar (distancia, velocidad, próxima maniobra). Tramas JSON chicas, solo con los campos necesarios.
 - Maniobras siempre como string legible (`"left"`, `"right"`, `"u_turn"`), nunca IDs numéricos.
 - ESP32 -> App: solo eventos de botones del manubrio (ej. `{"button":"ok"}`). El firmware no interpreta su efecto.

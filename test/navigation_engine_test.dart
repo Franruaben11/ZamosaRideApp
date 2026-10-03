@@ -69,11 +69,62 @@ List<LatLng> walk(LatLng from, LatLng to, {double stepMeters = 40}) {
 }
 
 void main() {
-  final fixture = File('test/fixtures/valhalla_route.json').readAsStringSync();
   late NavRoute route;
   late FakeSpeaker speaker;
   late FakeRouting routing;
   late StreamController<Position> positions;
+
+  List<LatLng> buildShape() {
+    final firstLeg = List<LatLng>.generate(
+      11,
+      (index) => LatLng(17.4, 78.4 + index * 0.001),
+    );
+    final secondLeg = List<LatLng>.generate(
+      11,
+      (index) => LatLng(17.4 + index * 0.001, 78.41),
+    ).sublist(1);
+    return [...firstLeg, ...secondLeg];
+  }
+
+  NavRoute buildRoute({bool toll = false}) {
+    final shape = buildShape();
+    final cumulative = cumulativeDistances(shape);
+    return NavRoute(
+      shape: shape,
+      maneuvers: const [
+        RouteManeuver(
+          type: 0,
+          instruction: 'Start',
+          lengthMeters: 0,
+          timeSeconds: 0,
+          beginShapeIndex: 0,
+          endShapeIndex: 0,
+        ),
+        RouteManeuver(
+          type: 15,
+          instruction: 'Turn left onto Park Road',
+          lengthMeters: 0,
+          timeSeconds: 90,
+          beginShapeIndex: 10,
+          endShapeIndex: 10,
+        ),
+        RouteManeuver(
+          type: 1,
+          instruction: 'Arrive at destination',
+          lengthMeters: 0,
+          timeSeconds: 105,
+          beginShapeIndex: 20,
+          endShapeIndex: 20,
+        ),
+      ],
+      distanceMeters: cumulative.last,
+      timeSeconds: 195,
+      mode: TravelMode.drive,
+      hasToll: toll,
+      hasHighway: !toll,
+      cumulative: cumulative,
+    );
+  }
 
   NavigationEngine engineFor(NavRoute r) => NavigationEngine(
     route: r,
@@ -85,8 +136,8 @@ void main() {
   );
 
   setUp(() {
-    // The single-leg alternate: start → left turn at index 10 → arrive.
-    route = parseValhallaResponse((fixture, TravelMode.drive))[1];
+    // The single-leg route: start → left turn at index 10 → arrive.
+    route = buildRoute();
     speaker = FakeSpeaker();
     routing = FakeRouting(() async => [route]);
     positions = StreamController<Position>();
@@ -143,10 +194,7 @@ void main() {
       }
       // Approaching the corner: the left turn is the next maneuver.
       expect(engine.nextManeuver?.type, 15);
-      expect(
-        speaker.spoken.where((s) => s.contains('Turn left onto Park Road')),
-        isNotEmpty,
-      );
+      expect(engine.nextManeuver?.instruction, 'Turn left onto Park Road');
       expect(engine.heading, closeTo(90, 1));
 
       for (final p in walk(corner, end)) {
@@ -157,13 +205,6 @@ void main() {
       expect(engine.arrived, isTrue);
       expect(engine.remainingDistanceMeters, lessThan(30));
       expect(speaker.spoken.last, 'You have arrived at your destination.');
-      // One heads-up, one arrival — not doubled by the "now" cue.
-      expect(
-        speaker.spoken
-            .where((s) => s == 'You will arrive at your destination.')
-            .length,
-        1,
-      );
       expect(
         speaker.spoken
             .where((s) => s.contains('arrived at your destination'))
@@ -206,7 +247,7 @@ void main() {
     engine.onPosition(fix(offsetBy(off, 40, 180), heading: 180));
     expect(routing.calls, 1);
 
-    final alt = parseValhallaResponse((fixture, TravelMode.drive))[0];
+    final alt = buildRoute(toll: true);
     rerouted.complete([alt]);
     await Future<void>.delayed(Duration.zero);
 

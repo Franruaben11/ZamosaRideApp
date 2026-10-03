@@ -10,10 +10,12 @@ dependencies:
   flutter:
     sdk: flutter
   flutter_compass: ^0.8.1
+  google_maps_flutter:
   flutter_map: ^8.3.1
   vector_map_tiles: ^9.0.0-beta.11
   vector_tile_renderer: ^6.1.0
   flutter_tts: ^4.2.5
+  flutter_polyline_points:
   geolocator: ^14.0.3
   http: ^1.6.0
   latlong2: ^0.10.1
@@ -48,14 +50,14 @@ flutter_launcher_icons:
   android: true
   ios: true
   remove_alpha_ios: true
-  image_path: assets/branding/icon.png
+  image_path: assets/branding/zamosaRide.png
   adaptive_icon_background: "#000000"
-  adaptive_icon_foreground: assets/branding/icon_foreground.png
+  adaptive_icon_foreground: assets/branding/zamosaRide.png
   web:
     generate: true
-    image_path: assets/branding/icon.png
+    image_path: assets/branding/zamosaRide.png
     background_color: "#000000"
     theme_color: "#000000"
   macos:
     generate: true
-    image_path: assets/branding/icon.png
+    image_path: assets/branding/zamosaRide.png

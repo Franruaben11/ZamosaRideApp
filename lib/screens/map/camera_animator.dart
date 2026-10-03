@@ -1,14 +1,15 @@
 import 'dart:async';
 
-import 'package:flutter/animation.dart';
-import 'package:flutter_map/flutter_map.dart';
+import 'package:flutter/material.dart';
 import 'package:latlong2/latlong.dart';
 
-/// Smoothly moves a [MapController]'s camera. One [AnimationController] is
+import 'google_map_facade.dart';
+
+/// Smoothly moves a [GoogleMapFacade]'s camera. One [AnimationController] is
 /// reused for every move (navigation issues one per GPS fix), and nothing
 /// happens until [ready] is set from `onMapReady`.
 class CameraAnimator {
-  final MapController map;
+  final GoogleMapFacade map;
   late final AnimationController _controller;
 
   bool ready = false;
@@ -66,10 +67,10 @@ class CameraAnimator {
   void stop() => _controller.stop();
 
   /// Fits the camera instantly, cancelling any animation.
-  void fit(CameraFit fit) {
+  void fit(List<LatLng> coordinates, {EdgeInsets padding = EdgeInsets.zero}) {
     if (!ready) return;
     stop();
-    map.fitCamera(fit);
+    map.fitCamera(coordinates, padding: padding);
   }
 
   void dispose() => _controller.dispose();
