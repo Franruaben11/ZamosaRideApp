@@ -9,6 +9,7 @@ import '../util/geo.dart';
 import 'api_client.dart';
 import 'app_exception.dart';
 
+
 /// A nearby-POI category, mapped to OSM tags queried via the Overpass API.
 class PoiCategory {
   final String label;
@@ -17,18 +18,7 @@ class PoiCategory {
 
   const PoiCategory(this.label, this.key, this.value);
 
-  static const all = <PoiCategory>[
-    PoiCategory('Restaurants', 'amenity', 'restaurant'),
-    PoiCategory('Cafés', 'amenity', 'cafe'),
-    PoiCategory('Fuel', 'amenity', 'fuel'),
-    PoiCategory('Hotels', 'tourism', 'hotel'),
-    PoiCategory('ATMs', 'amenity', 'atm'),
-    PoiCategory('Pharmacies', 'amenity', 'pharmacy'),
-    PoiCategory('Hospitals', 'amenity', 'hospital'),
-    PoiCategory('Groceries', 'shop', 'supermarket'),
-    PoiCategory('Parking', 'amenity', 'parking'),
-    PoiCategory('EV charging', 'amenity', 'charging_station'),
-  ];
+  static const all = <PoiCategory>[];
 }
 
 /// Live nearby-place search against OpenStreetMap via the Overpass API.
@@ -127,6 +117,7 @@ class OverpassService {
     return completer.future.whenComplete(() => hedge?.cancel());
   }
 
+  
   static List<Place> parseElements(String body, PoiCategory category) {
     final json = jsonDecode(body) as Map<String, dynamic>;
     final elements = json['elements'] as List<dynamic>? ?? const [];

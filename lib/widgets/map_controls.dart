@@ -52,12 +52,14 @@ class MapControls extends StatelessWidget {
                   ),
                 ),
         ),
-        FloatingActionButton.small(
+        /*
+          FloatingActionButton.small(
           heroTag: 'layers',
           tooltip: 'Map type',
           onPressed: onLayers,
           child: const Icon(Icons.layers),
         ),
+        */
         const SizedBox(height: 8),
         FloatingActionButton.small(
           heroTag: 'zoom_in',

@@ -69,7 +69,7 @@ class MapTopBar extends StatelessWidget {
                               const SizedBox(width: 12),
                               Expanded(
                                 child: Text(
-                                  title ?? 'Search here',
+                                  title ?? 'Buscar aqui',
                                   style: theme.textTheme.bodyLarge,
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,

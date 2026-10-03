@@ -138,17 +138,15 @@ class SettingsPage extends StatelessWidget {
             leading: Icon(Icons.map_outlined),
             title: Text('ZamosaRide'),
             subtitle: Text(
-              'Map data © OpenStreetMap contributors (ODbL) · '
-              'Places © Overture Maps Foundation · Routing by Valhalla/FOSSGIS · '
-              'Search by Photon & Nominatim · Weather by Open-Meteo · '
-              'Photos via Wikimedia Commons',
+              'Maps & Routing powered by Google Maps SDK and Google Routes API · '
+              'Weather by Open-Meteo',
             ),
           ),
           ListTile(
             leading: const Icon(Icons.layers_outlined),
-            title: const Text('Vector tiles'),
+            title: const Text('Map Provider'),
             subtitle: Text(
-              'OpenFreeMap (liberty) · Overture release ${VectorBasemap.overtureRelease}',
+              'Google Maps Platform',
             ),
           ),
           ListTile(
