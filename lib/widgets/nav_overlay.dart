@@ -198,6 +198,23 @@ class NavBottomBar extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
+          // --- INICIO DE CAJA DE DEPURACIÓN BLE ---
+          Container(
+            color: Colors.black87,
+            width: double.infinity,
+            padding: const EdgeInsets.all(4),
+            child: Text(
+              engine.ultimoJson, // Acá leemos la variable que creaste
+              style: const TextStyle(
+                color: Colors.greenAccent, 
+                fontSize: 11, 
+                fontFamily: 'monospace'
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ),
+          // --- FIN DE CAJA DE DEPURACIÓN BLE ---
+          
           LinearProgressIndicator(
             value: progress,
             minHeight: 4,

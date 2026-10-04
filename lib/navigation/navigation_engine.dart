@@ -13,6 +13,8 @@ import '../util/geo.dart';
 import 'speaker.dart';
 import '../services/ble_services.dart';
 
+import 'dart:convert';
+
 /// Supplies the live position stream; injectable for tests.
 typedef PositionStreamFactory = Stream<Position> Function();
 
@@ -69,6 +71,8 @@ class NavigationEngine extends ChangeNotifier {
   double _divergenceProgressMeters = 0;
   double _lastAlongMeters = 0;
   DateTime? _lastRerouteAt;
+
+  String ultimoJson = "Esperando GPS...";
 
   static const _offRouteThresholdMeters = 35.0;
   static const _offRouteFixesBeforeReroute = 2;
@@ -279,14 +283,29 @@ class NavigationEngine extends ChangeNotifier {
       }
     }
 
+    Map<String, dynamic> data = {
+      "tipoManiobra": maniobraNumero,
+      "distanciaManiobra": distanceToNextManeuver.round(),
+      "distanciaDestino": remainingDistanceMeters.round(),
+      "velocidadActual": speedKmh.round(),
+      "limiteVelocidad": 120,
+      "progresoViaje":
+          ((1 - remainingDistanceMeters / route.distanceMeters) * 100).round(),
+    };
+
     _bleService.sendNavigationUpdate(
       maniobraNumero,
       distanceToNextManeuver.round(),
       remainingDistanceMeters.round(),
       speedKmh.round(),
-      120,          // 120 km/h como límite de velocidad por defecto (puede ser dinámico si se implementa)
+      120,                   // 120 km/h como límite de velocidad por defecto (puede ser dinámico si se implementa)
       ((1 - remainingDistanceMeters / route.distanceMeters) * 100).round(),
     );
+
+    String jsonString = jsonEncode(data);
+    ultimoJson = jsonString;
+
+    notifyListeners();       // Le avisamos a la pantalla que se actualice
   }
 
   /// Detects a wrong turn while still geometrically near the route:
