@@ -23,6 +23,7 @@ dependencies:
   shared_preferences: ^2.5.5
   url_launcher: ^6.3.2
   wakelock_plus: ^1.7.0
+  flutter_blue_plus: ^2.3.14
 
 # Local copy of vector_map_tiles 9.0.0-beta.11 carrying two small fixes for
 # multi-theme layers (see packages/vector_map_tiles/PATCHES.md).

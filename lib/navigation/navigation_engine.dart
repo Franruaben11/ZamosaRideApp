@@ -11,6 +11,7 @@ import '../services/routing_service.dart';
 import '../util/constants.dart';
 import '../util/geo.dart';
 import 'speaker.dart';
+import '../services/ble_services.dart';
 
 /// Supplies the live position stream; injectable for tests.
 typedef PositionStreamFactory = Stream<Position> Function();
@@ -26,6 +27,7 @@ class NavigationEngine extends ChangeNotifier {
   final Place destination;
   final RoutingService _routing;
   final Speaker _speaker;
+  final _bleService = BleNavigationService();
   final PositionStreamFactory _positionStream;
   final PositionFetcher _currentPosition;
 
@@ -165,6 +167,7 @@ class NavigationEngine extends ChangeNotifier {
 
   Future<void> start() async {
     _speak('Starting navigation. ${route.maneuvers.first.instruction}');
+    _bleService.connectToDashboard();
 
     _positionSub = _positionStream().listen(
       _onPosition,
@@ -206,6 +209,7 @@ class NavigationEngine extends ChangeNotifier {
   void onPosition(Position position) => _onPosition(position);
 
   void _onPosition(Position position) {
+    print("📍 GPS MOVIDO: Lat: ${position.latitude}, Lng: ${position.longitude}");
     if (arrived || _disposed) return;
     final previousRaw = rawPosition;
     rawPosition = LatLng(position.latitude, position.longitude);
@@ -256,6 +260,33 @@ class NavigationEngine extends ChangeNotifier {
 
     _updateProgress(projection.alongRouteMeters);
     notifyListeners();
+
+
+    int maniobraNumero = 3; // 3 = Seguir recto por defecto
+    
+    if (nextManeuver != null) {
+      // Pasamos el texto a mayúsculas para evitar errores (ej: TURN_SLIGHT_LEFT)
+      String tipoGoogle = nextManeuver!.type.toString().toUpperCase(); 
+      
+      if (tipoGoogle.contains('DESTINATION')) {
+        maniobraNumero = 4; // Llegada
+      } else if (tipoGoogle.contains('LEFT')) {
+        maniobraNumero = 1; // Cubre TURN_LEFT, SLIGHT_LEFT, SHARP_LEFT, RAMP_LEFT
+      } else if (tipoGoogle.contains('RIGHT')) {
+        maniobraNumero = 2; // Cubre TURN_RIGHT, SLIGHT_RIGHT, SHARP_RIGHT, RAMP_RIGHT
+      } else if (tipoGoogle.contains('UTURN')) {
+        maniobraNumero = 5; // Opcional: si le programás una flecha de "Retorno en U" al visor
+      }
+    }
+
+    _bleService.sendNavigationUpdate(
+      maniobraNumero,
+      distanceToNextManeuver.round(),
+      remainingDistanceMeters.round(),
+      speedKmh.round(),
+      120,          // 120 km/h como límite de velocidad por defecto (puede ser dinámico si se implementa)
+      ((1 - remainingDistanceMeters / route.distanceMeters) * 100).round(),
+    );
   }
 
   /// Detects a wrong turn while still geometrically near the route:

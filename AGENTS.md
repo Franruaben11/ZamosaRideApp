@@ -58,7 +58,6 @@ flutter build apk --release  # APK de release
 
 - El teléfono procesa todo (GPS, Routes API, recálculos). El ESP32 solo dibuja y reporta botones.
 - App -> ESP32: estados listos para mostrar (distancia, velocidad, próxima maniobra). Tramas JSON chicas, solo con los campos necesarios.
-- Maniobras siempre como string legible (`"left"`, `"right"`, `"u_turn"`), nunca IDs numéricos.
 - ESP32 -> App: solo eventos de botones del manubrio (ej. `{"button":"ok"}`). El firmware no interpreta su efecto.
 - El esquema de campos y los UUID están en `../ZamosaRideFirmware/<ruta>`, que es la fuente de verdad. Revisarlo antes de tocar el protocolo y no asumir nombres de campos, UUID ni comportamiento no definidos.
 - La comunicación debe estar desacoplada de la UI y no bloquear el hilo principal.

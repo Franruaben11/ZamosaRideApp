@@ -12,8 +12,33 @@ const _navAmber = Color(0xFFB26A00);
 /// "then …" preview of the maneuver after the upcoming one.
 class NavBanner extends StatelessWidget {
   final NavigationEngine engine;
-
   const NavBanner({super.key, required this.engine});
+
+  IconData obtenerIconoManiobra(String? tipo) {
+    if (tipo == null) return Icons.navigation; // Flecha recta por defecto
+    
+    final t = tipo.toUpperCase();
+    
+    if (t.contains('DESTINATION')) return Icons.flag;
+    
+    if (t.contains('LEFT')) {
+      if (t.contains('U_TURN') || t.contains('UTURN')) return Icons.u_turn_left;
+      if (t.contains('SLIGHT')) return Icons.turn_slight_left;
+      if (t.contains('SHARP')) return Icons.turn_sharp_left;
+      return Icons.turn_left;
+    }
+    
+    if (t.contains('RIGHT')) {
+      if (t.contains('U_TURN') || t.contains('UTURN')) return Icons.u_turn_right;
+      if (t.contains('SLIGHT')) return Icons.turn_slight_right;
+      if (t.contains('SHARP')) return Icons.turn_sharp_right;
+      return Icons.turn_right;
+    }
+    
+    if (t.contains('STRAIGHT')) return Icons.straight;
+    
+    return Icons.navigation; // Si no reconoce la maniobra, flecha hacia arriba
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -60,7 +85,8 @@ class NavBanner extends StatelessWidget {
                     child: Icon(
                       offRoute
                           ? Icons.wrong_location_outlined
-                          : (next?.icon ?? Icons.navigation),
+                          // ACÁ HACEMOS EL CAMBIO:
+                          : obtenerIconoManiobra(next?.type.toString()),
                       color: Colors.white,
                       size: 46,
                     ),
@@ -122,7 +148,12 @@ class NavBanner extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(width: 6),
-                  Icon(following.icon, color: Colors.white, size: 20),
+                  // ACÁ HACEMOS EL SEGUNDO CAMBIO:
+                  Icon(
+                    obtenerIconoManiobra(following?.type.toString()), 
+                    color: Colors.white, 
+                    size: 20
+                  ),
                 ],
               ),
             ),
