@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_compass/flutter_compass.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart' as gm;
-import 'package:flutter_map/flutter_map.dart';
+//import 'package:flutter_map/flutter_map.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:vector_map_tiles/vector_map_tiles.dart' show Style;
@@ -27,7 +27,6 @@ import '../util/constants.dart';
 import '../util/geo.dart';
 import 'map/google_map_facade.dart';
 import '../widgets/foveated_layer.dart';
-import '../widgets/location_markers.dart';
 import '../widgets/map_controls.dart';
 import '../widgets/map_layers.dart';
 import '../widgets/map_top_bar.dart';
@@ -103,7 +102,7 @@ class _MapScreenState extends State<MapScreen>
   /// Phone-facing direction from the gyro/magnetometer fusion sensor.
   final _compassN = ValueNotifier<double?>(null);
   StreamSubscription<CompassEvent>? _compassSub;
-  DateTime _lastCompassCameraAt = DateTime.fromMillisecondsSinceEpoch(0);
+  // DateTime _lastCompassCameraAt = DateTime.fromMillisecondsSinceEpoch(0);
 
   LatLng? get _myLocation => _location.current;
 
@@ -142,6 +141,7 @@ class _MapScreenState extends State<MapScreen>
   /// Browse-mode heading-up follow (second tap on the my-location button),
   /// like Google's compass mode.
   bool _browseHeadingMode = false;
+  bool _blueDotEnabled = false;
 
   MapLayerStyle get _layer => MapLayerStyle.byName(AppSettings.layerName.value);
   Widget? _tileWidget;
@@ -250,46 +250,13 @@ class _MapScreenState extends State<MapScreen>
       }
 
       if (!_camera.ready) return;
-      final now = DateTime.now();
+      
+      // final now = DateTime.now();
       final engine = _nav;
 
-      // Navigating and standing still: turn the map with the phone.
-      if (engine != null &&
-          _view == _ViewMode.navigate &&
-          _followNavN.value &&
-          engine.speedMps < kStationarySpeedMps) {
-        if (now.difference(_lastCompassCameraAt).inMilliseconds < 700) return;
-        final currentHeadingUp = (-_mapController.camera.rotation) % 360;
-        if (bearingDiff(heading, currentHeadingUp) < 12) return;
-        _lastCompassCameraAt = now;
-        final position =
-            engine.snappedPosition ?? engine.rawPosition ?? _myLocation;
-        if (position != null) {
-          final target = _navCameraTarget(engine, position, heading);
-          _camera.animateTo(
-            center: target.center,
-            zoom: target.zoom,
-            rotation: -heading,
-            duration: const Duration(milliseconds: 550),
-          );
-        }
-        return;
-      }
 
-      // Browse compass mode: map follows the phone's facing direction.
-      if (_browseHeadingMode &&
-          _view == _ViewMode.browse &&
-          _myLocation != null) {
-        if (now.difference(_lastCompassCameraAt).inMilliseconds < 600) return;
-        final currentHeadingUp = (-_mapController.camera.rotation) % 360;
-        if (bearingDiff(heading, currentHeadingUp) < 6) return;
-        _lastCompassCameraAt = now;
-        _camera.animateTo(
-          center: _myLocation!,
-          rotation: -heading,
-          duration: const Duration(milliseconds: 450),
-        );
-      }
+
+
     }, onError: (Object e) => logError('compass', e));
   }
 
@@ -299,6 +266,13 @@ class _MapScreenState extends State<MapScreen>
   void _onBrowsePosition() {
     final here = _myLocation;
     if (here == null || !_camera.ready) return;
+
+    if (!_blueDotEnabled) {
+      setState(() {
+        _blueDotEnabled = true;
+      });
+    }
+
     if (_browseHeadingMode && _view == _ViewMode.browse) {
       _camera.animateTo(
         center: here,
@@ -1224,96 +1198,7 @@ class _MapScreenState extends State<MapScreen>
     });
   }
 
-  /// The user-position marker and accuracy ring. Rebuilt via its own
-  /// ListenableBuilder on every GPS tick — the rest of the map never
-  /// rebuilds for these.
-  Widget _buildUserLayers() {
-    final engine = _nav;
-    return ListenableBuilder(
-      listenable: Listenable.merge([
-        _location.position,
-        _location.heading,
-        _location.accuracy,
-        _compassN,
-        ?engine,
-      ]),
-      builder: (context, _) {
-        final navigating = _view == _ViewMode.navigate;
-        final markers = <Marker>[];
-        final circles = <CircleMarker>[];
-        LatLng? at;
-        double accuracy = 0;
-        if (navigating) {
-          at = engine?.snappedPosition ?? engine?.rawPosition ?? _myLocation;
-          accuracy = engine?.accuracyMeters ?? _location.accuracy.value;
-          if (at != null) {
-            // Sensor fusion: GPS course while moving (compass is unreliable
-            // inside a moving vehicle), phone-facing compass when slow or
-            // stationary (GPS course is unreliable there).
-            final moving =
-                engine != null &&
-                engine.rawPosition != null &&
-                engine.speedMps > kStationarySpeedMps;
-            final heading = moving
-                ? engine.heading
-                : (_compassN.value ??
-                      engine?.heading ??
-                      _location.heading.value);
-            markers.add(
-              Marker(
-                point: at,
-                width: 58,
-                height: 58,
-                // rotate:false keeps the marker in map space, so a plain
-                // heading rotation is correct and the layer doesn't rebuild
-                // on every camera rotation frame.
-                rotate: false,
-                child: Transform.rotate(
-                  angle: heading * math.pi / 180,
-                  child: const NavigationArrow(size: 58),
-                ),
-              ),
-            );
-          }
-        } else if (_myLocation != null) {
-          at = _myLocation;
-          accuracy = _location.accuracy.value;
-          final heading = _compassN.value ?? _location.heading.value;
-          markers.add(
-            Marker(
-              point: at!,
-              width: 60,
-              height: 60,
-              rotate: false,
-              child: Transform.rotate(
-                angle: heading * math.pi / 180,
-                child: const LocationBeamDot(),
-              ),
-            ),
-          );
-        }
-        // Accuracy ring: only when it says something (poor fix).
-        if (at != null && accuracy > 15) {
-          circles.add(
-            CircleMarker(
-              point: at,
-              radius: accuracy,
-              useRadiusInMeter: true,
-              color: kBrandBlue.withValues(alpha: 0.10),
-              borderColor: kBrandBlue.withValues(alpha: 0.35),
-              borderStrokeWidth: 1,
-            ),
-          );
-        }
-        return Stack(
-          children: [
-            CircleLayer(circles: circles),
-            MarkerLayer(markers: markers),
-          ],
-        );
-      },
-    );
-  }
+  
 
   @override
   Widget build(BuildContext context) {
@@ -1403,7 +1288,7 @@ class _MapScreenState extends State<MapScreen>
                   onLongPress: (point) => _onLongPress(
                     LatLng(point.latitude, point.longitude),
                   ),
-                  myLocationEnabled: true,
+                  myLocationEnabled: _blueDotEnabled,
                   myLocationButtonEnabled: false,
                   zoomControlsEnabled: false,
                   compassEnabled: false,
