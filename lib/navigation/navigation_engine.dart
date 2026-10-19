@@ -171,7 +171,7 @@ class NavigationEngine extends ChangeNotifier {
 
   Future<void> start() async {
     _speak('Starting navigation. ${route.maneuvers.first.instruction}');
-    _bleService.connectToDashboard();
+    unawaited(_bleService.connectToDashboard());
 
     _positionSub = _positionStream().listen(
       _onPosition,
@@ -213,7 +213,6 @@ class NavigationEngine extends ChangeNotifier {
   void onPosition(Position position) => _onPosition(position);
 
   void _onPosition(Position position) {
-    print("📍 GPS MOVIDO: Lat: ${position.latitude}, Lng: ${position.longitude}");
     if (arrived || _disposed) return;
     final previousRaw = rawPosition;
     rawPosition = LatLng(position.latitude, position.longitude);
@@ -263,14 +262,12 @@ class NavigationEngine extends ChangeNotifier {
     }
 
     _updateProgress(projection.alongRouteMeters);
-    notifyListeners();
-
 
     int maniobraNumero = 3; // 3 = Seguir recto por defecto
     
     if (nextManeuver != null) {
       // Pasamos el texto a mayúsculas para evitar errores (ej: TURN_SLIGHT_LEFT)
-      String tipoGoogle = nextManeuver!.type.toString().toUpperCase(); 
+      final tipoGoogle = nextManeuver!.type.toString().toUpperCase(); 
       
       if (tipoGoogle.contains('DESTINATION')) {
         maniobraNumero = 4; // Llegada
@@ -283,29 +280,35 @@ class NavigationEngine extends ChangeNotifier {
       }
     }
 
-    Map<String, dynamic> data = {
+    final distManiobra = distanceToNextManeuver.round();
+    final distDestino = remainingDistanceMeters.round();
+    final velActual = speedKmh.round();
+    final progreso =
+        ((1 - remainingDistanceMeters / route.distanceMeters) * 100).round();
+
+    final data = <String, dynamic>{
       "tipoManiobra": maniobraNumero,
-      "distanciaManiobra": distanceToNextManeuver.round(),
-      "distanciaDestino": remainingDistanceMeters.round(),
-      "velocidadActual": speedKmh.round(),
+      "distanciaManiobra": distManiobra,
+      "distanciaDestino": distDestino,
+      "velocidadActual": velActual,
       "limiteVelocidad": 120,
-      "progresoViaje":
-          ((1 - remainingDistanceMeters / route.distanceMeters) * 100).round(),
+      "progresoViaje": progreso,
     };
 
-    _bleService.sendNavigationUpdate(
-      maniobraNumero,
-      distanceToNextManeuver.round(),
-      remainingDistanceMeters.round(),
-      speedKmh.round(),
-      120,                   // 120 km/h como límite de velocidad por defecto (puede ser dinámico si se implementa)
-      ((1 - remainingDistanceMeters / route.distanceMeters) * 100).round(),
+    ultimoJson = jsonEncode(data);
+
+    unawaited(
+      _bleService.sendNavigationUpdate(
+        maniobraNumero,
+        distManiobra,
+        distDestino,
+        velActual,
+        120, // 120 km/h como límite de velocidad por defecto (puede ser dinámico si se implementa)
+        progreso,
+      ),
     );
 
-    String jsonString = jsonEncode(data);
-    ultimoJson = jsonString;
-
-    notifyListeners();       // Le avisamos a la pantalla que se actualice
+    notifyListeners(); // Le avisamos a la pantalla que se actualice una sola vez
   }
 
   /// Detects a wrong turn while still geometrically near the route:

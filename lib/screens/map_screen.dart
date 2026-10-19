@@ -128,9 +128,11 @@ class _MapScreenState extends State<MapScreen>
 
   // Cached render objects — rebuilt only when the underlying data changes,
   // not on every widget build.
-  List<gm.Polyline> _routePolylines = const [];
-  List<gm.Marker> _staticMarkers = const [];
+  Set<gm.Polyline> _routePolylines = const {};
+  Set<gm.Marker> _staticMarkers = const {};
   NavRoute? _cachedNavRoute;
+  NavRoute? _cachedPointsRoute;
+  List<gm.LatLng> _cachedActivePoints = const [];
 
   // Camera-follow throttling.
   LatLng? _lastCamTarget;
@@ -245,18 +247,9 @@ class _MapScreenState extends State<MapScreen>
       if (raw == null) return;
       final heading = raw < 0 ? raw + 360 : raw;
       final previous = _compassN.value;
-      if (previous == null || bearingDiff(heading, previous) > 1.5) {
+      if (previous == null || bearingDiff(heading, previous) > 3.0) {
         _compassN.value = heading;
       }
-
-      if (!_camera.ready) return;
-      
-      // final now = DateTime.now();
-      final engine = _nav;
-
-
-
-
     }, onError: (Object e) => logError('compass', e));
   }
 
@@ -414,21 +407,23 @@ class _MapScreenState extends State<MapScreen>
 
   void _rebuildRoutePolylines() {
     if (_routes.isEmpty && _cachedNavRoute == null) {
-      _routePolylines = const [];
+      _routePolylines = const {};
+      _cachedPointsRoute = null;
+      _cachedActivePoints = const [];
       return;
     }
     final dark = Theme.of(context).brightness == Brightness.dark;
     // Google-style route colors: strong blue with white casing by day,
     // bright blue with deep casing on the dark basemap.
     final activeFill = dark ? const Color(0xFF5AA7FF) : kBrandBlue;
-    final polylines = <gm.Polyline>[];
+    final polylines = <gm.Polyline>{};
     if (_view == _ViewMode.route) {
       for (var i = 0; i < _routes.length; i++) {
         if (i == _selectedRoute) continue;
         polylines.add(
           gm.Polyline(
             polylineId: gm.PolylineId('route_alt_$i'),
-            points: _routes[i].shape.map(_toGoogleLatLng).toList(),
+            points: _routes[i].shape.map(_toGoogleLatLng).toList(growable: false),
             width: 6,
             color: dark
                 ? const Color(0xFF8DA3B8).withValues(alpha: 0.7)
@@ -443,15 +438,22 @@ class _MapScreenState extends State<MapScreen>
               ? null
               : _routes[_selectedRoute.clamp(0, _routes.length - 1)]);
     if (active != null) {
+      if (!identical(active, _cachedPointsRoute)) {
+        _cachedPointsRoute = active;
+        _cachedActivePoints = active.shape
+            .map(_toGoogleLatLng)
+            .toList(growable: false);
+      }
+      final activePoints = _cachedActivePoints;
       // While navigating, gray out the part of the route already traveled.
       final split = _view == _ViewMode.navigate
-          ? _travelSplitIndex.clamp(0, active.shape.length - 2)
+          ? _travelSplitIndex.clamp(0, activePoints.length - 2)
           : 0;
       if (split > 0) {
         polylines.add(
           gm.Polyline(
             polylineId: const gm.PolylineId('route_traveled'),
-            points: active.shape.sublist(0, split + 1).map(_toGoogleLatLng).toList(),
+            points: activePoints.sublist(0, split + 1),
             width: 7,
             color: dark ? const Color(0xFF5F6B78) : const Color(0xFF9AA0A6),
           ),
@@ -460,9 +462,7 @@ class _MapScreenState extends State<MapScreen>
       polylines.add(
         gm.Polyline(
           polylineId: const gm.PolylineId('route_active'),
-          points: (split > 0 ? active.shape.sublist(split) : active.shape)
-              .map(_toGoogleLatLng)
-              .toList(),
+          points: split > 0 ? activePoints.sublist(split) : activePoints,
           width: 9,
           color: activeFill,
         ),
@@ -472,7 +472,11 @@ class _MapScreenState extends State<MapScreen>
   }
 
   void _rebuildStaticMarkers() {
-    final markers = <gm.Marker>[];
+    if (_pois.isEmpty && _selectedPlace == null) {
+      _staticMarkers = const {};
+      return;
+    }
+    final markers = <gm.Marker>{};
     for (final poi in _pois) {
       markers.add(
         gm.Marker(
@@ -895,14 +899,18 @@ class _MapScreenState extends State<MapScreen>
 
     // A reroute swapped the route object — refresh the cached polyline.
     if (!identical(engine.route, _cachedNavRoute)) {
-      _refresh(() {
+      setState(() {
         _cachedNavRoute = engine.route;
         _travelSplitIndex = 0;
+        _rebuildRoutePolylines();
       });
-    } else if (engine.segmentIndex - _travelSplitIndex >= 8) {
+    } else if (engine.segmentIndex - _travelSplitIndex >= 12) {
       // Periodically gray out the traveled part of the route (cheap: at most
-      // once per ~8 segments, never per frame).
-      _refresh(() => _travelSplitIndex = engine.segmentIndex);
+      // once per ~12 segments, never per frame, and without rebuilding markers).
+      setState(() {
+        _travelSplitIndex = engine.segmentIndex;
+        _rebuildRoutePolylines();
+      });
     }
 
     // Follow the user, but skip redundant camera animations when the
@@ -1230,75 +1238,81 @@ class _MapScreenState extends State<MapScreen>
                     nonRotatedSize: viewport,
                   );
                 }
-                return gm.GoogleMap(
-                  initialCameraPosition: gm.CameraPosition(
-                    target: gm.LatLng(
-                      initialCenter.latitude,
-                      initialCenter.longitude,
+                return Listener(
+                  onPointerDown: (_) => _camera.stop(),
+                  child: gm.GoogleMap(
+                    initialCameraPosition: gm.CameraPosition(
+                      target: gm.LatLng(
+                        initialCenter.latitude,
+                        initialCenter.longitude,
+                      ),
+                      zoom: initialZoom,
+                      bearing: 0,
                     ),
-                    zoom: initialZoom,
-                    bearing: 0,
+                    onMapCreated: (controller) {
+                      _mapController.attach(controller);
+                      _camera.ready = true;
+                      if (_myLocation != null &&
+                          _devCenter == null &&
+                          saved == null) {
+                        _centeredOnFirstFix = true;
+                        _mapController.move(_myLocation!, 15);
+                      }
+                    },
+                    onCameraMoveStarted: () {
+                      if (_mapController.programmaticMove) return;
+                      _camera.stop();
+                      if (_view == _ViewMode.navigate) {
+                        if (_followNavN.value) _followNavN.value = false;
+                        _autoRecenterTimer?.cancel();
+                        _autoRecenterTimer = Timer(
+                          const Duration(seconds: 10),
+                          () {
+                            if (mounted &&
+                                _view == _ViewMode.navigate &&
+                                _nav != null &&
+                                !_followNavN.value) {
+                              _followNavN.value = true;
+                              _lastCamTarget = null;
+                              _onNavUpdate();
+                            }
+                          },
+                        );
+                      }
+                      if (_browseHeadingMode) {
+                        setState(() => _browseHeadingMode = false);
+                      }
+                    },
+                    onCameraMove: (position) {
+                      _mapController.updateFromCameraPosition(position);
+                      final camera = _mapController.camera;
+                      _rotationN.value = camera.rotation;
+                      _updatePoiStale(camera);
+                      _scheduleCameraSave(camera);
+                    },
+                    onTap: (point) {
+                      if (_view != _ViewMode.place) return;
+                      if (_placeSheetVisible) {
+                        setState(() => _placeSheetVisible = false);
+                      } else {
+                        _closePlace();
+                      }
+                    },
+                    onLongPress: (point) => _onLongPress(
+                      LatLng(point.latitude, point.longitude),
+                    ),
+                    myLocationEnabled: _blueDotEnabled,
+                    myLocationButtonEnabled: false,
+                    zoomControlsEnabled: false,
+                    compassEnabled: false,
+                    mapToolbarEnabled: false,
+                    rotateGesturesEnabled: true,
+                    tiltGesturesEnabled: true,
+                    scrollGesturesEnabled: true,
+                    zoomGesturesEnabled: true,
+                    polylines: _routePolylines,
+                    markers: _staticMarkers,
                   ),
-                  onMapCreated: (controller) {
-                    _mapController.attach(controller);
-                    _camera.ready = true;
-                    if (_myLocation != null &&
-                        _devCenter == null &&
-                        saved == null) {
-                      _centeredOnFirstFix = true;
-                      _mapController.move(_myLocation!, 15);
-                    }
-                  },
-                  onCameraMoveStarted: () {
-                    if (_mapController.programmaticMove) return;
-                    _camera.stop();
-                    if (_view == _ViewMode.navigate) {
-                      if (_followNavN.value) _followNavN.value = false;
-                      _autoRecenterTimer?.cancel();
-                      _autoRecenterTimer = Timer(const Duration(seconds: 10), () {
-                        if (mounted &&
-                            _view == _ViewMode.navigate &&
-                            _nav != null &&
-                            !_followNavN.value) {
-                          _followNavN.value = true;
-                          _lastCamTarget = null;
-                          _onNavUpdate();
-                        }
-                      });
-                    }
-                    if (_browseHeadingMode) {
-                      setState(() => _browseHeadingMode = false);
-                    }
-                  },
-                  onCameraMove: (position) {
-                    _mapController.updateFromCameraPosition(position);
-                    final camera = _mapController.camera;
-                    _rotationN.value = camera.rotation;
-                    _updatePoiStale(camera);
-                    _scheduleCameraSave(camera);
-                  },
-                  onTap: (point) {
-                    if (_view != _ViewMode.place) return;
-                    if (_placeSheetVisible) {
-                      setState(() => _placeSheetVisible = false);
-                    } else {
-                      _closePlace();
-                    }
-                  },
-                  onLongPress: (point) => _onLongPress(
-                    LatLng(point.latitude, point.longitude),
-                  ),
-                  myLocationEnabled: _blueDotEnabled,
-                  myLocationButtonEnabled: false,
-                  zoomControlsEnabled: false,
-                  compassEnabled: false,
-                  mapToolbarEnabled: false,
-                  rotateGesturesEnabled: true,
-                  tiltGesturesEnabled: true,
-                  scrollGesturesEnabled: true,
-                  zoomGesturesEnabled: true,
-                  polylines: Set<gm.Polyline>.from(_routePolylines),
-                  markers: Set<gm.Marker>.from(_staticMarkers),
                 );
               },
             ),

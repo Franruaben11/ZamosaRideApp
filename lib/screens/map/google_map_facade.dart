@@ -39,10 +39,10 @@ class GoogleMapFacade {
 
   gm.GoogleMapController? _controller;
   MapViewCamera camera;
-  bool _programmaticMove = false;
+  int _programmaticMovesInFlight = 0;
 
   bool get ready => _controller != null;
-  bool get programmaticMove => _programmaticMove;
+  bool get programmaticMove => _programmaticMovesInFlight > 0;
 
   void attach(gm.GoogleMapController controller) {
     _controller = controller;
@@ -60,87 +60,105 @@ class GoogleMapFacade {
     );
   }
 
-  void move(LatLng center, double zoom) {
+  void _runProgrammatic(
+    Future<void> Function(gm.GoogleMapController controller) action,
+  ) {
     final controller = _controller;
     if (controller == null) return;
-    camera = camera.copyWith(center: center, zoom: zoom);
-    _programmaticMove = true;
+    _programmaticMovesInFlight++;
     unawaited(
-      controller
-          .animateCamera(
-            gm.CameraUpdate.newCameraPosition(
-              gm.CameraPosition(
-                target: gm.LatLng(center.latitude, center.longitude),
-                zoom: zoom,
-                bearing: camera.rotation,
-              ),
-            ),
-          )
-          .whenComplete(() => _programmaticMove = false),
+      action(controller).whenComplete(() {
+        if (_programmaticMovesInFlight > 0) {
+          _programmaticMovesInFlight--;
+        }
+      }),
     );
   }
 
-  void moveAndRotate(LatLng center, double zoom, double rotation) {
-    final controller = _controller;
-    if (controller == null) return;
-    camera = camera.copyWith(center: center, zoom: zoom, rotation: rotation);
-    _programmaticMove = true;
-    unawaited(
-      controller.animateCamera(
+  void move(LatLng center, double zoom, {Duration? duration}) {
+    camera = camera.copyWith(center: center, zoom: zoom);
+    _runProgrammatic(
+      (controller) => controller.animateCamera(
         gm.CameraUpdate.newCameraPosition(
           gm.CameraPosition(
             target: gm.LatLng(center.latitude, center.longitude),
             zoom: zoom,
-            bearing: rotation,
+            bearing: camera.rotation,
           ),
         ),
-      ).whenComplete(() => _programmaticMove = false),
+        duration: duration,
+      ),
     );
   }
 
-  void rotate(double rotation) {
-    final controller = _controller;
-    if (controller == null) return;
-    camera = camera.copyWith(rotation: rotation);
-    _programmaticMove = true;
-    unawaited(
-      controller
-          .animateCamera(
-            gm.CameraUpdate.newCameraPosition(
-              gm.CameraPosition(
-                target: gm.LatLng(camera.center.latitude, camera.center.longitude),
-                zoom: camera.zoom,
-                bearing: rotation,
-              ),
+  void moveAndRotate(
+    LatLng center,
+    double zoom,
+    double rotation, {
+    Duration? duration,
+  }) {
+    final normalizedBearing = (rotation % 360 + 360) % 360;
+    camera = camera.copyWith(
+      center: center,
+      zoom: zoom,
+      rotation: normalizedBearing,
+    );
+    _runProgrammatic(
+      (controller) => controller.animateCamera(
+        gm.CameraUpdate.newCameraPosition(
+          gm.CameraPosition(
+            target: gm.LatLng(center.latitude, center.longitude),
+            zoom: zoom,
+            bearing: normalizedBearing,
+          ),
+        ),
+        duration: duration,
+      ),
+    );
+  }
+
+  void rotate(double rotation, {Duration? duration}) {
+    final normalizedBearing = (rotation % 360 + 360) % 360;
+    camera = camera.copyWith(rotation: normalizedBearing);
+    _runProgrammatic(
+      (controller) => controller.animateCamera(
+        gm.CameraUpdate.newCameraPosition(
+          gm.CameraPosition(
+            target: gm.LatLng(
+              camera.center.latitude,
+              camera.center.longitude,
             ),
-          )
-          .whenComplete(() => _programmaticMove = false),
+            zoom: camera.zoom,
+            bearing: normalizedBearing,
+          ),
+        ),
+        duration: duration,
+      ),
     );
   }
 
-  void fitCamera(List<LatLng> coordinates, {EdgeInsets padding = EdgeInsets.zero}) {
-    final controller = _controller;
-    if (controller == null || coordinates.isEmpty) return;
+  void fitCamera(
+    List<LatLng> coordinates, {
+    EdgeInsets padding = EdgeInsets.zero,
+  }) {
+    if (_controller == null || coordinates.isEmpty) return;
     final bounds = _boundsFor(coordinates);
     if (bounds == null) return;
     final paddingPx = math.max(
       math.max(padding.left, padding.right),
       math.max(padding.top, padding.bottom),
     ).round();
-    _programmaticMove = true;
     final center = _centerOfBounds(bounds);
     camera = camera.copyWith(center: center);
-    unawaited(
-      controller
-          .animateCamera(
-            gm.CameraUpdate.newLatLngBounds(bounds, paddingPx.toDouble()),
-          )
-          .whenComplete(() => _programmaticMove = false),
+    _runProgrammatic(
+      (controller) => controller.animateCamera(
+        gm.CameraUpdate.newLatLngBounds(bounds, paddingPx.toDouble()),
+      ),
     );
   }
 
   void stop() {
-    _programmaticMove = false;
+    _programmaticMovesInFlight = 0;
   }
 
   void dispose() {}

@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:latlong2/latlong.dart';
 
@@ -9,6 +10,17 @@ import '../util/geo.dart';
 import 'api_client.dart';
 import 'app_exception.dart';
 
+List<Place> _parseAndSortOverpass((String, PoiCategory, LatLng) input) {
+  final (body, category, center) = input;
+  final places = OverpassService.parseElements(body, category);
+  places.sort(
+    (a, b) => distanceMeters(
+      center,
+      a.point,
+    ).compareTo(distanceMeters(center, b.point)),
+  );
+  return places;
+}
 
 /// A nearby-POI category, mapped to OSM tags queried via the Overpass API.
 class PoiCategory {
@@ -62,14 +74,10 @@ class OverpassService {
         'out center $limit;';
 
     final body = await _hedged(query);
-    final places = parseElements(body, category);
-    places.sort(
-      (a, b) => distanceMeters(
-        center,
-        a.point,
-      ).compareTo(distanceMeters(center, b.point)),
-    );
-    return places;
+    if (body.length > 4096) {
+      return compute(_parseAndSortOverpass, (body, category, center));
+    }
+    return _parseAndSortOverpass((body, category, center));
   });
 
   /// Starts the next mirror either when the previous one fails or after

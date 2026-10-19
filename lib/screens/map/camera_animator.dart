@@ -1,37 +1,17 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:latlong2/latlong.dart';
 
 import 'google_map_facade.dart';
 
-/// Smoothly moves a [GoogleMapFacade]'s camera. One [AnimationController] is
-/// reused for every move (navigation issues one per GPS fix), and nothing
-/// happens until [ready] is set from `onMapReady`.
+/// Smoothly moves a [GoogleMapFacade]'s camera by delegating interpolation to
+/// the native Google Maps engine (1 platform-channel call per camera target
+/// update instead of 60–120 calls per second).
 class CameraAnimator {
   final GoogleMapFacade map;
-  late final AnimationController _controller;
 
   bool ready = false;
 
-  // Tweens for the move in progress.
-  Tween<double> _lat = Tween(begin: 0, end: 0);
-  Tween<double> _lng = Tween(begin: 0, end: 0);
-  Tween<double> _zoom = Tween(begin: 0, end: 0);
-  Tween<double> _rot = Tween(begin: 0, end: 0);
-  Animation<double> _curve = const AlwaysStoppedAnimation(0);
-
-  CameraAnimator({required TickerProvider vsync, required this.map}) {
-    _controller = AnimationController(vsync: vsync)..addListener(_tick);
-  }
-
-  void _tick() {
-    map.moveAndRotate(
-      LatLng(_lat.evaluate(_curve), _lng.evaluate(_curve)),
-      _zoom.evaluate(_curve),
-      _rot.evaluate(_curve),
-    );
-  }
+  CameraAnimator({required TickerProvider vsync, required this.map});
 
   /// Animates to [center] (and optionally [zoom] / [rotation], in degrees),
   /// taking the shortest way round for rotation.
@@ -53,25 +33,23 @@ class CameraAnimator {
       delta += 360;
     }
 
-    _controller.stop();
-    _lat = Tween(begin: camera.center.latitude, end: center.latitude);
-    _lng = Tween(begin: camera.center.longitude, end: center.longitude);
-    _zoom = Tween(begin: camera.zoom, end: zoom ?? camera.zoom);
-    _rot = Tween(begin: beginRot, end: beginRot + delta);
-    _controller.duration = duration;
-    _curve = CurvedAnimation(parent: _controller, curve: curve);
-    unawaited(_controller.forward(from: 0));
+    map.moveAndRotate(
+      center,
+      zoom ?? camera.zoom,
+      beginRot + delta,
+      duration: duration,
+    );
   }
 
-  /// Stops any running animation (before a manual `move`/`fitCamera`).
-  void stop() => _controller.stop();
+  /// Resets the programmatic move state before a manual gesture or fit.
+  void stop() => map.stop();
 
-  /// Fits the camera instantly, cancelling any animation.
+  /// Fits the camera to [coordinates].
   void fit(List<LatLng> coordinates, {EdgeInsets padding = EdgeInsets.zero}) {
     if (!ready) return;
     stop();
     map.fitCamera(coordinates, padding: padding);
   }
 
-  void dispose() => _controller.dispose();
+  void dispose() {}
 }

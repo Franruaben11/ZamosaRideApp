@@ -34,10 +34,10 @@ class BleNavigationService {
         "progresoViaje": progresoViaje
     };
     
-    String jsonString = jsonEncode(data);
-    List<int> bytes = utf8.encode(jsonString);
+    final jsonString = jsonEncode(data);
+    final bytes = utf8.encode(jsonString);
 
-    // En lugar de enviar por txCharacteristic, lo imprimimos en consola
-    print("BLE_MOCK 📡 Enviando ${bytes.length} bytes -> $jsonString");
+    // En lugar de enviar por txCharacteristic, lo registramos sin bloquear la UI
+    log("BLE_MOCK 📡 Enviando ${bytes.length} bytes -> $jsonString", name: "BLE_MOCK");
   }
 }
