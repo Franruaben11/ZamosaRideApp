@@ -21,6 +21,8 @@
 
 ## Description
 
+### Ejecutar: flutter run --dart-define=GOOGLE_MAPS_API_KEY=apiKEY
+
 ZamosaRide es una aplicación móvil desarrollada en Flutter diseñada para navegación GPS paso a paso en motos. El app calcula rutas optimizadas usando la **Google Routes API** y las muestra con **Google Maps SDK**, ofreciendo instrucciones de maniobra, seguimiento de posición y recálculo automático cuando el usuario se desvía del camino.
 
 Está pensada para funcionar en conjunto con un ESP32-S3 (firmware `ZamosaRideFirmware`) que actúa como pantalla externa en la moto, mientras el teléfono procesa todo el cálculo de rutas, GPS y navegación.
